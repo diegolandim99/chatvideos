@@ -1,6 +1,6 @@
 # 🎬 ClipAI — Agente de IA para Criadores de Conteúdo
 
-[![Abrir no Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/SEU_USUARIO/ClipAI/blob/main/ClipAI.ipynb)
+[![Abrir no Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/diegolandim99/ClipAI/blob/main/ClipAI.ipynb)
 
 O **ClipAI** é um agente de Inteligência Artificial que roda gratuitamente no Google Colab, projetado para automatizar a criação de cortes virais para YouTube Shorts, TikTok e Instagram Reels — direto de qualquer vídeo do YouTube.
 
