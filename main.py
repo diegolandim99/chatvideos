@@ -70,6 +70,7 @@ def checar_deps() -> bool:
         "ffmpeg":      None,  # já vem no Colab
         "whisper":     ["pip", "install", "-q", "openai-whisper"],
         "transformers":["pip", "install", "-q", "transformers", "torch"],
+        "sentence_transformers":["pip", "install", "-q", "sentence-transformers"],
         "srt":         ["pip", "install", "-q", "srt"],
     }
     print(f"\n{CY}  Verificando dependências...{R}")
@@ -120,72 +121,42 @@ def skill_download_youtube():
 
 # ── Skill 2 · Detecção de Momentos Virais ───────────────────────────────────
 def skill_detectar_virais(video_path: Path):
-    """
-    Usa Whisper para transcrever e um modelo de linguagem leve
-    para pontuar os segmentos com maior potencial viral.
-    """
+    """Transcreve, cria janelas de 30–60 s e seleciona cortes por semântica local."""
     print(f"\n{MG}{B}✂️  DETECÇÃO DE MOMENTOS VIRAIS{R}\n")
     print(f"  {DM}Transcrevendo áudio com Whisper (modelo 'small')...{R}")
 
     import whisper
     model = whisper.load_model("small")
     result = model.transcribe(str(video_path), language="pt", verbose=False)
-
     segments = result.get("segments", [])
     if not segments:
         print(f"  {RD}Nenhum segmento encontrado.{R}")
         return []
 
     print(f"  {GR}✔  {len(segments)} segmentos transcritos.{R}")
-    print(f"\n  {CY}Analisando potencial viral com IA...{R}")
+    print(f"\n  {CY}Criando candidatos de 30–60 segundos...{R}")
 
-    # Palavras-chave de alto engajamento (heurística + expansível via LLM)
-    GATILHOS = [
-        "segredo","revelação","nunca contei","surpreendente","inacreditável",
-        "erro","falha","aconteceu","mudou tudo","viralizou","polêmica",
-        "verdade","confissão","exclusivo","impressionante","incrível",
-        "finalmente","atualização","urgente","importante","descoberta",
-        "react","reagindo","chocante","absurdo","estratégia",
-    ]
-
-    clips_pontuados = []
-    for seg in segments:
-        texto = seg["text"].lower()
-        score = sum(2 for g in GATILHOS if g in texto)
-        # Bônus por duração ideal (20-60s)
-        duracao = seg["end"] - seg["start"]
-        if 20 <= duracao <= 60:
-            score += 3
-        elif duracao < 10:
-            score -= 2
-        clips_pontuados.append({
-            "start":  seg["start"],
-            "end":    seg["end"],
-            "texto":  seg["text"].strip(),
-            "score":  score,
-        })
-
-    # Top clips (score > 0, máx 10)
-    top = sorted([c for c in clips_pontuados if c["score"] > 0],
-                 key=lambda x: x["score"], reverse=True)[:10]
+    from viral_selector import select_viral_clips
+    top, used_ai = select_viral_clips(segments)
 
     if not top:
-        print(f"  {YL}Nenhum momento viral detectado. Exibindo todos os segmentos.{R}")
-        top = clips_pontuados[:5]
+        print(f"  {RD}Nenhum corte adequado foi encontrado.{R}")
+        return []
 
-    print(f"\n  {GR}{B}TOP MOMENTOS VIRAIS:{R}\n")
+    label = "IA semântica local" if used_ai else "fallback textual"
+    print(f"\n  {GR}{B}TOP {len(top)} MOMENTOS — {label}{R}\n")
     for i, clip in enumerate(top, 1):
         inicio = _fmt_tempo(clip["start"])
-        fim    = _fmt_tempo(clip["end"])
-        print(f"  {CY}[{i:02d}]{R} {inicio} → {fim}  {YL}⭐ score {clip['score']}{R}")
-        print(f"       {DM}{clip['texto'][:80]}...{R}\n")
+        fim = _fmt_tempo(clip["end"])
+        print(f"  {CY}[{i:02d}]{R} {inicio} → {fim}  ({clip['duracao']:.1f}s)  {YL}⭐ {clip['score']:.3f}{R}")
+        print(f"       {DM}{clip['texto'][:130]}...{R}\n")
 
-    # Salvar JSON dos clips
     import json
     json_path = OUTPUT_DIR / f"{video_path.stem}_clips.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(top, f, ensure_ascii=False, indent=2)
-    print(f"  {GR}✔  Clips salvos em:{R} {json_path}")
+    print(f"  {GR}✔  JSON dos cortes salvo em:{R} {json_path}")
+    print(f"  {GR}✔  Serão gerados {len(top)} vídeos 9:16 no pipeline.{R}")
     return top
 
 
